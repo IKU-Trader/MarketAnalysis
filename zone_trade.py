@@ -25,20 +25,39 @@ from TA import TechnicalAnalysis as ta
 from TAKit import TAKit
 from const import const
 
+def minmax(array):
+    a = np.array(array)
+    minv = np.nanmin(a)
+    maxv = np.nanmax(a)
+    return (minv, maxv)
 
-def plotChart(dic: dict):
-    fig, axes = gridFig([8, 1], (30, 5))
-    chart1 = CandleChart(fig, axes[0], '')
-    chart1.drawCandle(dic[const.TIME], dic[const.OPEN], dic[const.HIGH], dic[const.LOW], dic[const.CLOSE])
-    chart1.drawLine(dic[const.TIME], dic['SMA5'])
-    chart1.drawLine(dic[const.TIME], dic['SMA20'], color='green')
-    chart1.drawLine(dic[const.TIME], dic['SMA60'], color='blue')
-    chart1.drawMarkers(dic[const.TIME], dic[const.LOW], -0.05, dic['SIGNAL'], 1, '^', 'green', overlay=1, markersize=20)
-    chart1.drawMarkers(dic[const.TIME], dic[const.LOW], -0.05, dic['SIGNAL'], 2, '^', 'green', overlay=2, markersize=20)
-    chart1.drawMarkers(dic[const.TIME], dic[const.HIGH], 
-                       50, dic['SIGNAL'], -1, '^', 'red', overlay=1, markersize=20)
-    chart1.drawMarkers(dic[const.TIME], dic[const.HIGH], 50, dic['SIGNAL'], -2, '^', 'red', overlay=2, markersize=20)
-    chart2 = BandPlot(fig, axes[1], 'MA Trend', date_format=CandleChart.DATE_FORMAT_DAY_HOUR)
+def plotChart(ticker: str, dic: dict):
+    time = dic[const.TIME]
+    fig, axes = gridFig([8, 5, 2, 2, 1], (14, 10))
+    chart1 = CandleChart(fig, axes[0], title=ticker, write_time_range=True)
+    chart1.drawCandle(time, dic[const.OPEN], dic[const.HIGH], dic[const.LOW], dic[const.CLOSE])
+    chart1.drawLine(time, dic['SMA5'])
+    chart1.drawLine(time, dic['SMA20'], color='green')
+    chart1.drawLine(time, dic['SMA60'], color='blue')
+    chart1.drawLine(time, dic['H2'], color='yellow', ylim=minmax(dic['H2']), linewidth=2.0)
+    chart1.drawMarkers(time, dic[const.LOW], -0.05, dic['SIGNAL'], 1, '^', 'green', overlay=1, markersize=20)
+    chart1.drawMarkers(time, dic[const.LOW], -0.05, dic['SIGNAL'], 2, '^', 'green', overlay=2, markersize=20)
+    chart1.drawMarkers(time, dic[const.HIGH], 50, dic['SIGNAL'], -1, '^', 'red', overlay=1, markersize=20)
+    chart1.drawMarkers(time, dic[const.HIGH], 50, dic['SIGNAL'], -2, '^', 'red', overlay=2, markersize=20)
+    
+    chart2 = CandleChart(fig, axes[1], comment='SLOPE')
+    chart2.drawLine(time, dic['SLOPE_SMA5'], color='red')
+    chart2.drawLine(time, dic['SLOPE_SMA60'], color='blue')
+    chart2.drawLine(time, dic['SLOPE_SMA20'], color='green')
+    chart2.drawLine(time, dic['SLOPE_SMA60'], color='blue')
+    
+    chart3 = CandleChart(fig, axes[2], comment='ATR')
+    chart3.drawLine(time, dic['ATR'])
+    
+    chart4 = CandleChart(fig, axes[3], comment='ADX')
+    chart4.drawLine(time, dic['ADX'])
+    
+    chart5 = CandleChart(fig, axes[4], comment='MA Trend', date_format=CandleChart.DATE_FORMAT_DAY_HOUR)
     colors = {ta.UPPER_TREND: 'red',
               ta.UPPER_SUB_TREND: Colors.light_red,
               ta.UPPER_DIP: 'black',
@@ -46,10 +65,9 @@ def plotChart(dic: dict):
               ta.LOWER_SUB_TREND: Colors.light_green,
               ta.LOWER_DIP: 'black',
               ta.NO_TREND: 'gray'}
-    chart2.drawBand(dic[const.TIME], dic['MA_TREND'], colors=colors)
+    chart5.drawBand(time, dic['MA_TREND'], colors=colors, xlabel=True)
 
-
-def displayChart(data: ResampleDataBuffer, years, months, from_hour, to_hour):
+def displayChart(ticker, data: ResampleDataBuffer, years, months, from_hour, to_hour):
     time = data.dic[const.TIME]
     t0 = t1 = None
     for year in years:
@@ -66,17 +84,17 @@ def displayChart(data: ResampleDataBuffer, years, months, from_hour, to_hour):
                 if n < 50:
                     continue
                 dic = Utils.sliceDic(data.dic, begin, end)
-                plotChart(dic)
-
+                plotChart(ticker, dic)
 
 def main():
-    data = MarketData.gbpaud_data(TAKit.matrend(), [2022], np.arange(1, 13), 5)
+    ticker = 'GBPJPY'
+    data = MarketData.fxData(ticker, TAKit.matrend(), [2022], np.arange(1, 13), 5)
     dic = data.dic
+    #print(dic['H4'][1000:1050])
     print(dic.keys())
     time = dic[const.TIME]
     print(time[0], '--', time[-1])
-    displayChart(data, [2022], np.arange(1, 2), 7, 2)
-   
-    
+    displayChart(ticker, data, [2022], np.arange(1, 2), 7, 2)
+       
 if __name__ == '__main__':
     main()
