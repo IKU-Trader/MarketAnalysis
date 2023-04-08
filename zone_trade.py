@@ -26,11 +26,17 @@ from TAKit import TAKit
 from const import const
 
 def minmax(array):
-    a = np.array(array)
-    minv = np.nanmin(a)
-    maxv = np.nanmax(a)
-    return (minv, maxv)
-
+    a = np.array(array, dtype=float)
+    try:
+        minv = np.nanmin(a)
+        maxv = np.nanmax(a)
+        if np.isnan(minv) or np.isnan(maxv):
+            return None
+        else:
+            return (minv, maxv)
+    except:
+        return None
+    
 def plotChart(ticker: str, dic: dict):
     time = dic[const.TIME]
     fig, axes = gridFig([8, 5, 2, 2, 1], (14, 10))
@@ -39,7 +45,10 @@ def plotChart(ticker: str, dic: dict):
     chart1.drawLine(time, dic['SMA5'])
     chart1.drawLine(time, dic['SMA20'], color='green')
     chart1.drawLine(time, dic['SMA60'], color='blue')
-    chart1.drawLine(time, dic['H2'], color='yellow', ylim=minmax(dic['H2']), linewidth=2.0)
+    chart1.drawLine(time, dic['H2_SMA20'], color='yellow', linewidth=2.0)
+    chart1.drawLine(time, dic['H4_SMA20'], color='orange', linewidth=2.0)
+    chart1.drawLine(time, dic['BOLLINGER+'], color='gray', linewidth=0.5)
+    chart1.drawLine(time, dic['BOLLINGER-'], color='gray', linewidth=0.5)
     chart1.drawMarkers(time, dic[const.LOW], -0.05, dic['SIGNAL'], 1, '^', 'green', overlay=1, markersize=20)
     chart1.drawMarkers(time, dic[const.LOW], -0.05, dic['SIGNAL'], 2, '^', 'green', overlay=2, markersize=20)
     chart1.drawMarkers(time, dic[const.HIGH], 50, dic['SIGNAL'], -1, '^', 'red', overlay=1, markersize=20)
@@ -88,7 +97,7 @@ def displayChart(ticker, data: ResampleDataBuffer, years, months, from_hour, to_
 
 def main():
     ticker = 'GBPJPY'
-    data = MarketData.fxData(ticker, TAKit.matrend(), [2022], np.arange(1, 13), 5)
+    data = MarketData.fxData(ticker, TAKit.basic(), [2022], np.arange(1, 13), 5)
     dic = data.dic
     #print(dic['H4'][1000:1050])
     print(dic.keys())
