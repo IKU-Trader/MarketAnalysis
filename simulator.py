@@ -34,7 +34,7 @@ TICKERS = ['DOWUSD', 'NASUSD', 'JPXJPY', 'XAUUSD', 'WTIUSD', 'USDJPY','EURJPY', 
 TIMEFRAMES = ['M1', 'M5', 'M15', 'M30', 'H1', 'H4', 'D1']
 BARSIZE = ['50', '100', '150', '200', '300', '400', '500']
 
-INTERVAL_MSEC_LIST = [10, 50, 100, 500, 1000]
+INTERVAL_MSEC_LIST = [50, 100, 500, 1000]
 
 
 
@@ -85,11 +85,28 @@ barsize = html.Div([html.P('Display Bar Size',
                     className='font-weight-bold'),
                     barsize_dropdown])
 
+
+replay = html.Div([html.P('Replay'),
+                    dbc.Row([
+                        html.Button('LoadData', id='load_button'),
+                        dcc.Dropdown(id='timer_interval', 
+                                     multi=False, 
+                                     value = INTERVAL_MSEC_LIST[2],
+                                     options = INTERVAL_MSEC_LIST,
+                                     style={'width': '120px'}),
+                        dcc.Input(id="index", type="number", placeholder="index",
+                                            min=0, step=1,
+                                            style={'margin-top': '8px'}),
+                        html.Button('Play', id='play_button'),
+                        html.Button('Stop', id='stop_button')])
+                    ])
+
 sidebar =  html.Div([   setting_bar,
                         html.Div([ticker,
                                  timeframe,
                                  barsize,
-                                 html.Hr()],
+                                 html.Hr(),
+                                 replay],
                         style={'height': '100vh', 'margin': '2px'})])
     
 contents = html.Div([   dbc.Row([html.H5('MetaTrader5', style={'margin-top': '2px', 'margin-left': '20px'})],
