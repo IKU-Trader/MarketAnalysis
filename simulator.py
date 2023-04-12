@@ -14,7 +14,7 @@ Created on Tue Mar 14 20:41:14 2023
 import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '../Utilities'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '../PyMT5'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '../MarketData'))
 
 import numpy as np
 import pandas as pd
@@ -25,32 +25,36 @@ from dash.dependencies import Input, Output, State
 import plotly.graph_objects as go
 from plotly.figure_factory import create_candlestick
 
-from PyMT5 import PyMT5
 from TimeUtils import TimeUtils
+from Utils import Utils
 from const import const
+from MarketData import MarketData
+from DataServerStub import DataServerStub
+from DataBuffer import DataBuffer, ResampleDataBuffer
 
 INTERVAL_MSEC = 200
-TICKERS = ['DOWUSD', 'NASUSD', 'JPXJPY', 'XAUUSD', 'WTIUSD', 'USDJPY','EURJPY', 'GBPJPY', 'AUDJPY']
-TIMEFRAMES = ['M1', 'M5', 'M15', 'M30', 'H1', 'H4', 'D1']
-BARSIZE = ['50', '100', '150', '200', '300', '400', '500']
+TICKERS = ['GBPJPY', 'GBPAUD']
+TIMEFRAMES = ['M1', 'M5', 'M15', 'M30', 'H1', 'H2', 'H4']
+BARSIZE = ['100', '200', '300', '400', '500']
 
 INTERVAL_MSEC_LIST = [50, 100, 500, 1000]
 
 
-
-server = PyMT5(TimeUtils.TIMEZONE_TOKYO)
 app = Dash(__name__, external_stylesheets=[dbc.themes.FLATLY])
 
+#
+server = DataServerStub('')
 
 # ----
 
-timer = dcc.Interval(id='timer', interval=INTERVAL_MSEC_LIST[2], disabled=False)
+timer = dcc.Interval(id='timer', interval=INTERVAL_MSEC_LIST[2], disabled=True)
 
 setting_bar = dbc.Row( [html.H5('Control',
                         style={'margin-top': '2px', 'margin-left': '24px'})
                         ],
                         style={"height": "3vh"},
                         className='bg-primary text-white')
+
 
 ticker_dropdown = dcc.Dropdown(id='symbol_dropdown',
                                multi=False,
@@ -69,41 +73,59 @@ timeframe_dropdown = dcc.Dropdown(id='timeframe_dropdown',
                                   options=[{'label': x, 'value': x} for x in TIMEFRAMES],
                                   style={'width': '120px'})
 
-timeframe =  html.Div([ html.P('Time Frame',
-                        style={'margin-top': '16px', 'margin-bottom': '4px'},
-                        className='font-weight-bold'),
-                        timeframe_dropdown])
+timeframe = html.Div([ html.P('Time Frame',
+                       style={'margin-top': '8px', 'margin-bottom': '4px'},
+                       className='font-weight-bold'),
+                       timeframe_dropdown])
+
+load = html.Div([ html.Button(id='load_button', 
+                              n_clicks=0, 
+                              children='Load Data',
+                              style={'margin-top': '4px', 'margin-left': '8px', 'margin-right': '16px'},
+                              className='btn btn-primary'),
+                  html.Div(id='load_response', 
+                           children='0',
+                           style={'margin-top': '4px', 'margin-left': '8px', 'margin-bottom': '4px'})])
 
 barsize_dropdown = dcc.Dropdown(id='barsize_dropdown', 
                                 multi=False, 
-                                value=BARSIZE[2],
+                                value=BARSIZE[1],
                                 options=[{'label': x, 'value': x} for x in BARSIZE],
                                 style={'width': '120px'})
 
-barsize = html.Div([html.P('Display Bar Size',
-                    style={'margin-top': '16px', 'margin-bottom': '4px'},
-                    className='font-weight-bold'),
-                    barsize_dropdown])
-
+barsize = dbc.Col([html.P('Display Bar Size',
+                          style={'margin-bottom': '4px'}),
+                           barsize_dropdown])
 
 replay = html.Div([html.P('Replay'),
-                    dbc.Row([
-                        html.Button('LoadData', id='load_button'),
-                        dcc.Dropdown(id='timer_interval', 
+                   dbc.Row([
+                            html.P('Timer Interval(msec)', style={'margin-top': '4px', 'margin-bottom': '4px'}),
+                            dcc.Dropdown(id='timer_interval', 
                                      multi=False, 
                                      value = INTERVAL_MSEC_LIST[2],
                                      options = INTERVAL_MSEC_LIST,
                                      style={'width': '120px'}),
-                        dcc.Input(id="index", type="number", placeholder="index",
-                                            min=0, step=1,
-                                            style={'margin-top': '8px'}),
-                        html.Button('Play', id='play_button'),
-                        html.Button('Stop', id='stop_button')])
+                            html.P('bar', style={'margin-top': '8px', 'margin-bottom': '0px'}),
+                            dcc.Input(id="bar_index",
+                                      type="number",
+                                      placeholder="index",
+                                      value = 10005,
+                                      min=10000,
+                                      step=1,
+                                      style={'width':'120px', 'margin-top':'4px', 'margin-left': '12px'})]),
+                            html.Button(id='play_button', n_clicks=0, children='Play',
+                                                        style={'margin-top': '8px', 'margin-left': '0px'},
+                                                        className='btn btn-primary'),
+                            html.Button(id='stop_button', n_clicks=0, children='Stop',
+                                                        style={'margin-top': '8px', 'margin-left': '4px'},
+                                                        className='btn btn-primary')
                     ])
 
-sidebar =  html.Div([   setting_bar,
+sidebar = html.Div([   setting_bar,
                         html.Div([ticker,
                                  timeframe,
+                                 load,
+                                 html.Hr(),
                                  barsize,
                                  html.Hr(),
                                  replay],
@@ -120,20 +142,75 @@ app.layout = dbc.Container([dbc.Row([dbc.Col(sidebar, width=2, className='bg-lig
                                      style={"height": "80vh"})],
                             fluid=True)
 
+@app.callback([ Output('load_button', 'n_clicks'),
+                Output('load_response', 'children')],
+              [ Input('load_response', 'children'),
+                Input('load_button', 'n_clicks')],
+                State('symbol_dropdown', 'value'),
+                State('timeframe_dropdown', 'value'),
+                State('bar_index', 'value')
+                )
+def updateServer(response, n_clicks,  symbol, timeframe, bar_index):
+    global server
+    global buffer
+    print(n_clicks)
+    if n_clicks == 0:
+        return (0, response)    
+    if timeframe[0].upper() != 'M':
+        return (0, 'Bad ')
+    minutes = int(timeframe[1:])
+    candles, tohlc = MarketData.fxData(symbol, None, None, 1)
+    print('Data size:', len(tohlc[0]))
+    server = DataServerStub('')
+    server.importData(tohlc)
+    tohcv2 = server.init(bar_index, step_sec=10)
+    buffer = ResampleDataBuffer(tohcv2, [], minutes)
+    return (0, str(server.size()))
 
+@app.callback([Output('play_button', 'n_clicks'),
+                Output('stop_button', 'n_clicks'),
+                Output('timer', 'interval'),
+                Output('timer', 'disabled')],
+              [Input('play_button', 'n_clicks'),
+                Input('stop_button', 'n_clicks')],
+              [State('timer_interval', 'value'),
+                State('timer', 'disabled')])
+def stop_interval(n_play, n_stop, timer_interval, disabled):
+    if n_play is None or n_stop is None:
+        return (0, 0, timer_interval, disabled)
+    if n_play == 0 and n_stop == 0:
+        return (0, 0, timer_interval, disabled)
+    if n_play > 0:
+        print('Play')
+        return (0, 0, timer_interval, False)
+    if n_stop > 0:
+        print('Stop')
+        return (0, 0, timer_interval, True)
 
 @app.callback(  Output('chart_output', 'children'),
                  Input('timer', 'n_intervals'),
                  State('symbol_dropdown', 'value'),
                  State('timeframe_dropdown', 'value'),
-                 State('barsize_dropdown', 'value')
+                 State('barsize_dropdown', 'value'),
+                 State('bar_index', 'value')
 )
-def updateChart(interval, symbol, timeframe, num_bars):
+def updateChart(interval, symbol, timeframe, display_bar_size, bar_index):
+    try:
+        if server.size() == 0:
+            print('No data')
+            return no_update
+    except:
+        print('No data')
+        return no_update
     #print(interval)
-    num_bars = int(num_bars)
-    print(symbol, timeframe, num_bars)
-    dic = server.download(symbol, timeframe, num_bars)
-    chart = createChart(symbol, timeframe, dic)
+    num_bars = int(display_bar_size)
+    bar_index = int(bar_index)
+    print(symbol, timeframe, num_bars, bar_index)
+    candles = server.nextData()
+    buffer.update(candles)
+    _, dic = buffer.temporary()
+    sliced = Utils.sliceDicLast(dic, num_bars)
+    chart = createChart(symbol, timeframe, sliced)
     return chart
   
 def createChart(symbol, timeframe, dic):
