@@ -15,6 +15,7 @@ import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '../Utilities'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '../MarketData'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '../TechnicalAnalysis'))
 
 import numpy as np
 import pandas as pd
@@ -25,21 +26,21 @@ from dash.dependencies import Input, Output, State
 import plotly.graph_objects as go
 from plotly.figure_factory import create_candlestick
 
-from TimeUtils import TimeUtils
-from Utils import Utils
+from ta_kit import TAKit
+from time_utils import TimeUtils
+from utils import Utils
 from const import const
-from MarketData import MarketData
-from DataServerStub import DataServerStub
-from DataBuffer import DataBuffer, ResampleDataBuffer
+from market_data import MarketData
+from data_server_stub import DataServerStub
+from data_buffer import DataBuffer, ResampleDataBuffer
 
-INTERVAL_MSEC = 200
+
 TICKERS = ['GBPJPY', 'GBPAUD']
 TIMEFRAMES = ['M1', 'M5', 'M15', 'M30', 'H1', 'H2', 'H4']
 BARSIZE = ['100', '200', '300', '400', '500']
+YEARS = ['2017', '2018', '2019', '2020', '2021', '2022', '2023']
 
-INTERVAL_MSEC_LIST = [50, 100, 500, 1000]
-
-
+INTERVAL_MSEC_LIST = [100, 200, 500, 1000]
 app = Dash(__name__, external_stylesheets=[dbc.themes.FLATLY])
 
 #
@@ -47,14 +48,13 @@ server = DataServerStub('')
 
 # ----
 
-timer = dcc.Interval(id='timer', interval=INTERVAL_MSEC_LIST[2], disabled=True)
+timer = dcc.Interval(id='timer', interval=INTERVAL_MSEC_LIST[0], disabled=True)
 
 setting_bar = dbc.Row( [html.H5('Control',
                         style={'margin-top': '2px', 'margin-left': '24px'})
                         ],
                         style={"height": "3vh"},
                         className='bg-primary text-white')
-
 
 ticker_dropdown = dcc.Dropdown(id='symbol_dropdown',
                                multi=False,
@@ -78,18 +78,50 @@ timeframe = html.Div([ html.P('Time Frame',
                        className='font-weight-bold'),
                        timeframe_dropdown])
 
+
+year_dropdown = dcc.Dropdown(id='year', 
+                                  multi=False, 
+                                  value=YEARS[-1], 
+                                  options=[{'label': x, 'value': x} for x in YEARS],
+                                  style={'width': '120px'})
+
+month_from_dropdown = dcc.Dropdown(id='month_from', 
+                                  multi=False, 
+                                  value='1', 
+                                  options=[{'label': x, 'value': x} for x in range(1, 13)],
+                                  style={'width': '120px'})
+
+month_to_dropdown = dcc.Dropdown(id='month_to', 
+                                  multi=False, 
+                                  value='1', 
+                                  options=[{'label': x, 'value': x} for x in range(1, 13)],
+                                  style={'width': '120px'})
+
+term = html.Div([ html.P('Year',
+                          style={'margin-top': '8px', 'margin-bottom': '4px'},
+                          className='font-weight-bold'),
+                  year_dropdown,
+                  html.P('Month',
+                          style={'margin-top': '8px', 'margin-bottom': '4px'},
+                          className='font-weight-bold'),                  
+                  month_from_dropdown,     
+                  html.P('～',
+                       style={'margin-top': '8px', 'margin-bottom': '4px'},
+                       className='font-weight-bold'),
+                  month_to_dropdown])
+
 load = html.Div([ html.Button(id='load_button', 
                               n_clicks=0, 
                               children='Load Data',
                               style={'margin-top': '4px', 'margin-left': '8px', 'margin-right': '16px'},
                               className='btn btn-primary'),
                   html.Div(id='load_response', 
-                           children='0',
+                           children='-',
                            style={'margin-top': '4px', 'margin-left': '8px', 'margin-bottom': '4px'})])
 
 barsize_dropdown = dcc.Dropdown(id='barsize_dropdown', 
                                 multi=False, 
-                                value=BARSIZE[1],
+                                value=BARSIZE[2],
                                 options=[{'label': x, 'value': x} for x in BARSIZE],
                                 style={'width': '120px'})
 
@@ -102,15 +134,15 @@ replay = html.Div([html.P('Replay'),
                             html.P('Timer Interval(msec)', style={'margin-top': '4px', 'margin-bottom': '4px'}),
                             dcc.Dropdown(id='timer_interval', 
                                      multi=False, 
-                                     value = INTERVAL_MSEC_LIST[2],
+                                     value = INTERVAL_MSEC_LIST[0],
                                      options = INTERVAL_MSEC_LIST,
                                      style={'width': '120px'}),
                             html.P('bar', style={'margin-top': '8px', 'margin-bottom': '0px'}),
                             dcc.Input(id="bar_index",
                                       type="number",
                                       placeholder="index",
-                                      value = 10005,
-                                      min=10000,
+                                      value=0,
+                                      min=0,
                                       step=1,
                                       style={'width':'120px', 'margin-top':'4px', 'margin-left': '12px'})]),
                             html.Button(id='play_button', n_clicks=0, children='Play',
@@ -124,6 +156,8 @@ replay = html.Div([html.P('Replay'),
 sidebar = html.Div([   setting_bar,
                         html.Div([ticker,
                                  timeframe,
+                                 html.Hr(),
+                                 term,
                                  load,
                                  html.Hr(),
                                  barsize,
@@ -143,29 +177,61 @@ app.layout = dbc.Container([dbc.Row([dbc.Col(sidebar, width=2, className='bg-lig
                             fluid=True)
 
 @app.callback([ Output('load_button', 'n_clicks'),
+                Output('bar_index', 'value'),
                 Output('load_response', 'children')],
               [ Input('load_response', 'children'),
                 Input('load_button', 'n_clicks')],
-                State('symbol_dropdown', 'value'),
+              [ State('symbol_dropdown', 'value'),
                 State('timeframe_dropdown', 'value'),
-                State('bar_index', 'value')
+                State('year', 'value'),
+                State('month_from', 'value'),
+                State('month_to', 'value')]
                 )
-def updateServer(response, n_clicks,  symbol, timeframe, bar_index):
+def updateServer(response, n_clicks,  symbol, timeframe, year, month_from, month_to):
     global server
     global buffer
     print(n_clicks)
     if n_clicks == 0:
-        return (0, response)    
+        return (0, 0, response)    
     if timeframe[0].upper() != 'M':
-        return (0, 'Bad ')
+        return (0, 0, 'Bad Timeframe...' + timeframe)
+    
+    year = int(year)
+    month_from = int(month_from)
+    month_to = int(month_to)
+    if month_from > month_to:
+        return (0, 0, 'Bad Month...')
+    
+    tbegin = TimeUtils.pyTime(year, month_from, 1, 0, 0, 0, TimeUtils.TIMEZONE_TOKYO)    
+    month_from -= 1
+    if month_from <= 0:
+        month_from += 12
+        year_from = year - 1
+        year_to = year
+    else:
+        year_from = year
+        year_to = year
+    
+    print(f'Read begin {year_from}/{month_from} - {year_to}/{month_to}')
+    
     minutes = int(timeframe[1:])
-    candles, tohlc = MarketData.fxData(symbol, None, None, 1)
-    print('Data size:', len(tohlc[0]))
+    candles, tohlc = MarketData.fxData(symbol, year_from, month_from, year_to, month_to, 1)
+    if len(tohlc[0]) < 0:
+        return (0, 0, 'Read error, No data')
+
+    bar_index =-1
+    for i, t in enumerate(tohlc[0]):
+        if t >= tbegin:
+            bar_index = i
+            break    
+    if bar_index < 0:
+        return(0, 0, 'No data found')
+    
     server = DataServerStub('')
     server.importData(tohlc)
-    tohcv2 = server.init(bar_index, step_sec=10)
-    buffer = ResampleDataBuffer(tohcv2, [], minutes)
-    return (0, str(server.size()))
+    tohlc2 = server.init(bar_index, step_sec=10)
+    buffer = ResampleDataBuffer(tohlc2, TAKit.basic(), minutes)
+    return (0, bar_index, str(server.size()))
 
 @app.callback([Output('play_button', 'n_clicks'),
                 Output('stop_button', 'n_clicks'),
@@ -216,6 +282,7 @@ def updateChart(interval, symbol, timeframe, display_bar_size, bar_index):
 def createChart(symbol, timeframe, dic):
     fig = create_candlestick(dic[const.OPEN], dic[const.HIGH], dic[const.LOW], dic[const.CLOSE])
     time = dic[const.TIME]
+    n = len(time)
     #print(symbol, timeframe, dic)
     xtick0 = (5 - time[0].weekday()) % 5
     tfrom = time[0].strftime('%Y-%m-%d %H:%M')
@@ -226,8 +293,8 @@ def createChart(symbol, timeframe, dic):
         form = '%d/%H:%M'
     fig['layout'].update({
                             'title': symbol + '　' +  tfrom + '  ...  ' + tto,
-                            'width': 1100,
-                            'height': 400,
+                            'width': 1200,
+                            'height': 600,
                             'xaxis':{
                                         'title': '',
                                         'showgrid': True,
@@ -242,7 +309,7 @@ def createChart(symbol, timeframe, dic):
                             'paper_bgcolor': '#f7f7ff' # RGB
                         })
     
-    #print(fig)
+    fig.add_trace(go.Scatter(x=np.linspace(0, 1, n), y=dic['SMA5'], mode='lines', name='SMA5'))
     return dcc.Graph(id='stock-graph', figure=fig)
 
 

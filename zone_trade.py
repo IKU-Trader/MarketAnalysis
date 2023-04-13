@@ -16,13 +16,13 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import timedelta
-from Utils import Utils
-from TimeUtils import TimeUtils
-from DataBuffer import ResampleDataBuffer
-from MarketData import MarketData
-from CandleChart import CandleChart, BandPlot, makeFig, gridFig, Colors
-from TA import TechnicalAnalysis as ta
-from TAKit import TAKit
+from utils import Utils
+from time_utils import TimeUtils
+from data_buffer import ResampleDataBuffer
+from market_data import MarketData
+from candle_chart import CandleChart, BandPlot, makeFig, gridFig, Colors
+from technical_analysis import TechnicalAnalysis as ta
+from ta_kit import TAKit
 from const import const
 
 def minmax(array):

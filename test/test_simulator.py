@@ -14,13 +14,13 @@ import numpy as np
 import pandas as pd
 
 
-from TimeUtils import TimeUtils
-from Utils import Utils
+from time_utils import TimeUtils
+from utils import Utils
 from const import const
-from MarketData import MarketData
-from DataServerStub import DataServerStub
-from DataBuffer import DataBuffer, ResampleDataBuffer
-from CandleChart import CandleChart, makeFig
+from market_data import MarketData
+from data_server_stub import DataServerStub
+from data_buffer import DataBuffer, ResampleDataBuffer
+from candle_chart import CandleChart, makeFig
 
 timeframe = 'M5'
 symbol = 'GBPJPY'
