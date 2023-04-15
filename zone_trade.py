@@ -21,7 +21,7 @@ from time_utils import TimeUtils
 from data_buffer import ResampleDataBuffer
 from market_data import MarketData
 from candle_chart import CandleChart, BandPlot, makeFig, gridFig, Colors
-from technical_analysis import TechnicalAnalysis as ta
+from technical_analysis import TA
 from ta_kit import TAKit
 from const import const
 
@@ -67,13 +67,13 @@ def plotChart(ticker: str, dic: dict):
     chart4.drawLine(time, dic['ADX'])
     
     chart5 = CandleChart(fig, axes[4], comment='MA Trend', date_format=CandleChart.DATE_FORMAT_DAY_HOUR)
-    colors = {ta.UPPER_TREND: 'red',
-              ta.UPPER_SUB_TREND: Colors.light_red,
-              ta.UPPER_DIP: 'black',
-              ta.LOWER_TREND: 'green',
-              ta.LOWER_SUB_TREND: Colors.light_green,
-              ta.LOWER_DIP: 'black',
-              ta.NO_TREND: 'gray'}
+    colors = {TA.UPPER_TREND: 'red',
+              TA.UPPER_SUB_TREND: Colors.light_red,
+              TA.UPPER_DIP: 'black',
+              TA.LOWER_TREND: 'green',
+              TA.LOWER_SUB_TREND: Colors.light_green,
+              TA.LOWER_DIP: 'black',
+              TA.NO_TREND: 'gray'}
     chart5.drawBand(time, dic['MA_TREND'], colors=colors, xlabel=True)
 
 def displayChart(ticker, data: ResampleDataBuffer, years, months, from_hour, to_hour):

@@ -26,13 +26,13 @@ from dash.dependencies import Input, Output, State
 import plotly.graph_objects as go
 from plotly.figure_factory import create_candlestick
 
-from ta_kit import TAKit
 from time_utils import TimeUtils
 from utils import Utils
 from const import const
 from market_data import MarketData
 from data_server_stub import DataServerStub
 from data_buffer import DataBuffer, ResampleDataBuffer
+from technical_analysis import TA
 
 
 TICKERS = ['GBPJPY', 'GBPAUD']
@@ -230,7 +230,7 @@ def updateServer(response, n_clicks,  symbol, timeframe, year, month_from, month
     server = DataServerStub('')
     server.importData(tohlc)
     tohlc2 = server.init(bar_index, step_sec=10)
-    buffer = ResampleDataBuffer(tohlc2, TAKit.basic(), minutes)
+    buffer = ResampleDataBuffer(tohlc2, TA.basic_kit(), minutes)
     return (0, bar_index, str(server.size()))
 
 @app.callback([Output('play_button', 'n_clicks'),
