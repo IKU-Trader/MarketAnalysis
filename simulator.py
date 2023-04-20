@@ -33,6 +33,7 @@ from market_data import MarketData
 from data_server_stub import DataServerStub
 from data_buffer import DataBuffer, ResampleDataBuffer
 from technical_analysis import TA
+from datetime import datetime
 
 
 TICKERS = ['GBPJPY', 'GBPAUD']
@@ -273,9 +274,11 @@ def updateChart(interval, symbol, timeframe, display_bar_size, bar_index):
     bar_index = int(bar_index)
     print(symbol, timeframe, num_bars, bar_index)
     candles = server.nextData()
+    t0 = datetime.now()
     buffer.update(candles)
     _, dic = buffer.temporary()
     sliced = Utils.sliceDicLast(dic, num_bars)
+    print('Elapsed time: ', datetime.now() - t0)
     chart = createChart(symbol, timeframe, sliced)
     return chart
   
@@ -309,7 +312,7 @@ def createChart(symbol, timeframe, dic):
                             'paper_bgcolor': '#f7f7ff' # RGB
                         })
     
-    fig.add_trace(go.Scatter(x=np.linspace(0, 1, n), y=dic['SMA5'], mode='lines', name='SMA5'))
+    #fig.add_trace(go.Scatter(x=np.linspace(0, 1, n), y=dic['SMA5'], mode='lines', name='SMA5'))
     return dcc.Graph(id='stock-graph', figure=fig)
 
 

@@ -23,6 +23,7 @@ from data_server_stub import DataServerStub
 from data_buffer import DataBuffer, ResampleDataBuffer
 from candle_chart import CandleChart, makeFig
 from technical_analysis import TA
+from datetime import datetime
 
 bar_index = 0
 timeframe = 'M5'
@@ -86,15 +87,20 @@ def update():
     #print(interval)
     
     print(symbol, timeframe, num_bars, bar_index)
+    t0 = datetime.now()
     candles = server.nextData()
     buffer.update(candles)
     _, dic = buffer.temporary()
     sliced = Utils.sliceDicLast(dic, num_bars)
+    print('Elapsed time: ', datetime.now() - t0)
     
     fig, ax = makeFig(1, 1, (12, 6)) 
     chart = CandleChart(fig, ax, '', '', write_time_range=True)
-    chart.drawCandle(sliced[const.TIME], sliced[const.OPEN], sliced[const.HIGH], sliced[const.LOW], sliced[const.CLOSE], xlabel=True)
-    
+    time = sliced[const.TIME]
+    chart.drawCandle(time, sliced[const.OPEN], sliced[const.HIGH], sliced[const.LOW], sliced[const.CLOSE], xlabel=True)
+    chart.drawLine(time, sliced['SMA5'])
+    chart.drawLine(time, sliced['SMA20'], color='green')
+    chart.drawLine(time, sliced['SMA60'], color='blue')
 
 if __name__ == '__main__':
     load()
